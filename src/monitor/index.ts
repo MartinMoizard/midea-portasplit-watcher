@@ -125,10 +125,13 @@ async function main(): Promise<void> {
       {
         source: 'test',
         key: 'test-2',
-        label: 'Boulanger 999€',
-        url: 'https://www.boulanger.com/ref/1216685',
-        price: 999,
-        risky: false, // enseigne de confiance => titre "EN STOCK"
+        label: 'Castorama Lyon (69003) — retrait/magasin',
+        url: 'https://www.castorama.fr/climatiseur-portasplit-midea-reversible-3500w/8431312260509_CAFR.prd',
+        price: 999.9,
+        risky: false,
+        mapsUrl:
+          'https://www.google.com/maps/search/?api=1&query=' +
+          encodeURIComponent('Castorama Lyon 69003'),
       },
     ]);
     console.log(`   ✅ Test envoyé. Vérifie ton téléphone / tes notifications.`);

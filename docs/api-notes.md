@@ -163,6 +163,31 @@ Pour mémoire (si re-listé un jour), la lecture du stock Auchan est complexe (S
 (header `x-requested-with`, cookie journey). Lire `data-handled-seller-types`
 (vendeurs dispo) + prix dans `.offer-selector__components-wrapper`.
 
+## ✅ Boutiques spécialisées — INTÉGRÉES (checkers génériques)
+
+`src/monitor/shops.ts` — WooCommerce Store API / Shopify `.js` / JSON-LD, filtre
+prix ≤ 1100€, flag `risky` (titre d'alerte "[A VERIFIER]") pour petits vendeurs :
+- **MegElectro** (WooCommerce, `is_in_stock`) — 700€, EN STOCK le 28/06/2026. SIREN/SIRET OK.
+- **JBS Électroménager** (Shopify, `variants[].available`) — 849,99€, EN STOCK. RCS OK.
+- **Bruneau** (B2B, JSON-LD) — 999€, rupture. **Hemmera** (JSON-LD) — rupture.
+
+## ⚠️ Carrefour — DÉLISTÉ / Weldom — ABSENT
+
+- **Carrefour** : Cloudflare (Playwright Chromium passe). Fiche
+  `carrefour.fr/p/midea-portasplit-...-8431312260509` mais **offerCount 0, « a
+  déserté les rayons »** → délisté. Couvert indirectement via 123comparer.
+- **Weldom** (Adeo) : **produit non référencé**. N'est PAS sur la plateforme Square
+  d'Adeo (Magento + Sensefuel, DataDome, vrai Chrome requis). Marque maison
+  « OPTIMEO » ≠ « Optimea ». Rien à surveiller.
+
+## ❌ eBay / Rakuten — hors cloud
+
+eBay : annonces neuves ~788-830€ vues, mais scraping bloqué depuis IP datacenter →
+**API Browse officielle** requise (compte dev gratuit, OAuth client_credentials,
+filtre `price:[..1100]`). Rakuten : 403 + page freeze sur IP datacenter, pas d'API
+acheteur → **proxy résidentiel** requis. Tous deux suivis indirectement (leDénicheur
+tracke eBay/Rakuten/Boulanger ; 123comparer tracke aussi).
+
 ## ❌ Cdiscount — PAS DE FICHE
 
 Aucune fiche officielle Midea PortaSplit/Optimea (GTIN + marque vérifiés).

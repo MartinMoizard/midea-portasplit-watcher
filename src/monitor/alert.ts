@@ -117,19 +117,22 @@ function sendMacOS(title: string, body: string): Promise<void> {
 export async function dispatchAlert(cfg: AlertConfig, offers: Offer[]): Promise<void> {
   if (offers.length === 0) return;
 
-  // Regroupe par URL (= par destination cliquable).
+  // Regroupe par destination : un magasin précis (mapsUrl) ne fusionne pas avec
+  // les autres ; sinon on regroupe par URL produit (ex. livraison nationale).
   const groups = new Map<string, Offer[]>();
   for (const o of offers) {
-    const arr = groups.get(o.url) ?? [];
+    const groupKey = o.mapsUrl ?? o.url;
+    const arr = groups.get(groupKey) ?? [];
     arr.push(o);
-    groups.set(o.url, arr);
+    groups.set(groupKey, arr);
   }
 
   console.log(`\n\x1b[1m\x1b[42m\x1b[30m  🎉 EN STOCK (${groups.size}) — Midea PortaSplit  \x1b[0m`);
 
   const tasks: Array<[string, Promise<void>]> = [];
-  for (const [url, items] of groups) {
+  for (const [, items] of groups) {
     const first = items[0]!;
+    const url = first.url;
     const risky = items.some((o) => o.risky);
     // L'avertissement est EXPLICITE dans le titre (texte ASCII qui survit au
     // header ntfy) + tag "warning" (rendu ⚠️ par ntfy).
@@ -143,7 +146,8 @@ export async function dispatchAlert(cfg: AlertConfig, offers: Offer[]): Promise<
       (items.length > 1
         ? items.map((o) => `• ${o.label}`).join('\n')
         : first.label) +
-      '\n👉 Clique pour ouvrir';
+      '\n👉 Clique pour ouvrir/commander' +
+      (first.mapsUrl ? `\n📍 Itinéraire magasin : ${first.mapsUrl}` : '');
     const tags = risky ? 'warning' : 'rotating_light,snowflake';
 
     console.log(`   \x1b[32m→ ${title}\x1b[0m  \x1b[36m${url}\x1b[0m`);

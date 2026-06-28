@@ -29,6 +29,14 @@ export interface Offer {
   price: number | null;
   /** Vendeur peu connu / signal à confirmer => avertissement DANS le titre. */
   risky?: boolean;
+  /** Lien Google Maps vers le magasin précis (offres en magasin). */
+  mapsUrl?: string;
+}
+
+/** Lien Maps vers un magasin précis (1 tap = itinéraire vers la ville). */
+function mapsLink(enseigne: string, city: string, postalCode: string): string {
+  const q = encodeURIComponent(`${enseigne} ${city} ${postalCode}`.trim());
+  return `https://www.google.com/maps/search/?api=1&query=${q}`;
 }
 
 export interface ScanResult {
@@ -68,6 +76,7 @@ export async function scanCastorama(): Promise<ScanResult> {
           label: `Castorama ${s.city} (${s.postalCode}) — retrait/magasin`,
           url: CASTO_URL,
           price: 999.9,
+          mapsUrl: mapsLink('Castorama', s.city, s.postalCode),
         });
       }
     }
@@ -112,6 +121,7 @@ export async function scanBoulanger(): Promise<ScanResult> {
             label: `Boulanger ${s.city} (${s.postalCode}) — ${s.quantity} en stock`,
             url: BOULANGER_URL,
             price: 999,
+            mapsUrl: mapsLink('Boulanger', s.city, s.postalCode),
           });
         }
       }
