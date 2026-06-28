@@ -42,7 +42,12 @@ export async function getManoManoState(timeoutMs = 25_000): Promise<ManoManoStat
       },
       signal: ctrl.signal,
     });
+    if (!res.ok) throw new Error(`ManoMano HTTP ${res.status}`);
     const json: any = await res.json();
+    // Erreur GraphQL (clé expirée, query rejetée) => ne PAS interpréter comme rupture.
+    if (json?.errors && json?.data == null) {
+      throw new Error(`ManoMano GraphQL: ${JSON.stringify(json.errors).slice(0, 120)}`);
+    }
     const offers: any[] = json?.data?.offersByProductIds?.offers ?? [];
     const offer = offers.find((o) => o?.isSellable) ?? null;
     return {

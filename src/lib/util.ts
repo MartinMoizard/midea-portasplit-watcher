@@ -1,4 +1,7 @@
-/** Utilitaires partagés : géo + concurrence. */
+/** Utilitaires partagés : géo + concurrence + constantes. */
+
+/** Prix plafond (€) : au-delà, on ignore l'offre (revendeur opportuniste). */
+export const PRICE_MAX = 1100;
 
 /** Distance haversine en km (arrondie). */
 export function haversineKm(

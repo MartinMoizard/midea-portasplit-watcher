@@ -11,9 +11,8 @@
 import type { Offer, ScanResult } from './sources.js';
 import { fetchHtml } from '../lib/http.js';
 import { extractJsonLd, findProductOffer } from '../lib/jsonld.js';
-import { pool } from '../lib/util.js';
+import { pool, PRICE_MAX } from '../lib/util.js';
 
-const PRICE_MAX = 1100;
 const UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 
@@ -74,6 +73,7 @@ async function getJson(url: string, timeoutMs: number): Promise<any> {
       headers: { 'User-Agent': UA, Accept: 'application/json' },
       signal: ctrl.signal,
     });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } finally {
     clearTimeout(timer);
@@ -91,13 +91,15 @@ async function checkWoo(shop: Shop, timeoutMs: number): Promise<ShopState> {
     list[0];
   if (!p) return { inStock: false, price: null };
   const minor = p.prices?.currency_minor_unit ?? 2;
-  const price = p.prices?.price != null ? Number(p.prices.price) / 10 ** minor : null;
+  const raw = p.prices?.price != null ? Number(p.prices.price) / 10 ** minor : 0;
+  const price = raw > 0 ? raw : null; // 0 = placeholder/prix mal lu => null
   return { inStock: Boolean(p.is_in_stock && p.is_purchasable), price };
 }
 
 async function checkShopify(shop: Shop, timeoutMs: number): Promise<ShopState> {
   const p = await getJson(`${shop.url}.js`, timeoutMs);
-  const price = p?.price != null ? Number(p.price) / 100 : null;
+  const rawPrice = p?.price != null ? Number(p.price) / 100 : 0;
+  const price = rawPrice > 0 ? rawPrice : null;
   const available =
     Boolean(p?.available) ||
     (Array.isArray(p?.variants) && p.variants.some((v: any) => v?.available));
@@ -146,7 +148,7 @@ export async function scanShops(): Promise<ScanResult> {
     if (inStock && (price == null || price <= PRICE_MAX)) {
       offers.push({
         source: 'shops',
-        key: `shop:${r.shop.id}`,
+        key: `shops:${r.shop.id}`,
         label: `${r.shop.name}${price ? ` — ${price}€` : ''}`,
         url: r.shop.url,
         price,

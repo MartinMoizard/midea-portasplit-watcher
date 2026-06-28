@@ -115,9 +115,21 @@ export async function lastStock(
       }),
       signal: ctrl.signal,
     });
+    if (!res.ok) throw new Error(`Boulanger HTTP ${res.status}`);
     const json: any = await res.json();
+    // "no stock anywhere" (DEL_LAS_001) est légitime => data présent, results vide.
+    // Mais une erreur d'auth/serveur (data null + errors) NE doit PAS passer pour
+    // une rupture : on lève pour que la source remonte ok:false.
+    const hasData = json?.data !== undefined && json?.data !== null;
+    if (!hasData && (json?.faultstring || json?.errors || json?.error)) {
+      throw new Error(
+        `Boulanger lastStock: ${String(json.faultstring ?? JSON.stringify(json.errors ?? json.error)).slice(0, 120)}`,
+      );
+    }
     const results: any[] = json?.data?.lastStock?.results ?? [];
-    return results.map((r) => ({
+    return results
+      .filter((r) => Number(r?.quantity ?? 0) > 0) // ne garder que le vrai stock
+      .map((r) => ({
       siteId: String(r.siteId),
       label: String(r.label ?? r.siteId),
       quantity: Number(r.quantity ?? 0),

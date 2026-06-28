@@ -20,7 +20,14 @@ import {
   loadAlertConfig,
   activeChannels,
   dispatchAlert,
+  notifyAll,
 } from './alert.js';
+
+/** Source d'une clé d'offre (préfixe avant ':' = nom de la source). */
+function sourceOfKey(key: string): string {
+  const i = key.indexOf(':');
+  return i === -1 ? key : key.slice(0, i);
+}
 
 // Charge .env (Node >=20.12) si présent — sinon variables d'env système.
 try {
@@ -37,6 +44,7 @@ const STATE_FILE = join(
 interface MonitorState {
   updatedAt: string;
   knownKeys: string[]; // offres achetables connues (pour ne pas ré-alerter)
+  blind?: boolean; // true si le dernier cycle avait TOUTES les sources en panne
 }
 
 async function loadState(): Promise<MonitorState> {
@@ -51,21 +59,47 @@ function ts(): string {
   return new Date().toLocaleString('fr-FR');
 }
 
+async function save(state: MonitorState): Promise<void> {
+  await writeFile(
+    STATE_FILE,
+    JSON.stringify({ ...state, updatedAt: new Date().toISOString() }, null, 2),
+  );
+}
+
 async function cycle(): Promise<void> {
   const cfg = loadAlertConfig();
   const results: ScanResult[] = await Promise.all(ALL_SCANNERS.map((s) => s()));
 
-  const offers: Offer[] = results.flatMap((r) => r.offers);
-  const currentKeys = offers.map((o) => o.key);
-
+  const okResults = results.filter((r) => r.ok);
+  const downSources = new Set(results.filter((r) => !r.ok).map((r) => r.source));
   const prev = await loadState();
   const known = new Set(prev.knownKeys);
-  const newOffers = offers.filter((o) => !known.has(o.key));
 
   // Résumé de cycle (log de vie)
   const summary = results
     .map((r) => `${r.source}:${r.ok ? r.offers.length : 'ERR'}${r.note ? `(${r.note})` : ''}`)
     .join(' · ');
+
+  // Radar AVEUGLE : toutes les sources en panne => ne PAS confondre avec "rupture".
+  // On préserve l'état tel quel et on alerte une seule fois (transition vers aveugle).
+  if (okResults.length === 0) {
+    console.error(`[${ts()}] ⚠️ RADAR AVEUGLE — toutes les sources en erreur · ${summary}`);
+    if (!prev.blind) {
+      await notifyAll(cfg, {
+        title: '⚠️ Radar aveugle - toutes les sources en erreur',
+        body: 'Le radar ne peut plus lire AUCUNE source (anti-bot/API/réseau). Vérifie le radar — ce n\'est PAS une rupture.',
+        tags: 'warning',
+      });
+    }
+    await save({ knownKeys: prev.knownKeys, blind: true, updatedAt: '' });
+    return;
+  }
+
+  // Offres uniquement depuis les sources SAINES (une source morte ≠ rupture).
+  const offers: Offer[] = okResults.flatMap((r) => r.offers);
+  const currentKeys = offers.map((o) => o.key);
+  const newOffers = offers.filter((o) => !known.has(o.key));
+
   console.log(
     `[${ts()}] ${offers.length} offre(s) dispo · ${newOffers.length} nouvelle(s) · ${summary}`,
   );
@@ -74,22 +108,21 @@ async function cycle(): Promise<void> {
     await dispatchAlert(cfg, newOffers);
   }
 
-  // Persiste UNIQUEMENT si l'ensemble des offres a changé (évite le bruit de
-  // commits dans le cron cloud : pas d'écriture si rien ne bouge).
-  const curSet = new Set(currentKeys);
+  // État suivant = clés des sources saines + clés CONSERVÉES des sources en panne
+  // (on n'oublie pas une offre juste parce que sa source a timeout ce cycle —
+  // sinon elle re-déclencherait une fausse alerte à son retour).
+  const preserved = prev.knownKeys.filter((k) => downSources.has(sourceOfKey(k)));
+  const nextKeys = [...new Set([...currentKeys, ...preserved])];
+
+  // Persiste seulement si l'ensemble change (évite le bruit de commits en cloud).
+  const nextSet = new Set(nextKeys);
   const changed =
-    currentKeys.length !== known.size ||
-    currentKeys.some((k) => !known.has(k)) ||
-    [...known].some((k) => !curSet.has(k));
+    prev.blind === true ||
+    nextSet.size !== known.size ||
+    [...nextSet].some((k) => !known.has(k)) ||
+    [...known].some((k) => !nextSet.has(k));
   if (changed) {
-    await writeFile(
-      STATE_FILE,
-      JSON.stringify(
-        { updatedAt: new Date().toISOString(), knownKeys: currentKeys },
-        null,
-        2,
-      ),
-    );
+    await save({ knownKeys: nextKeys, blind: false, updatedAt: '' });
   }
 }
 

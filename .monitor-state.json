@@ -1,7 +1,8 @@
 {
-  "updatedAt": "2026-06-28T13:22:08.461Z",
   "knownKeys": [
-    "shop:megelectro",
-    "shop:jbs"
-  ]
+    "shops:megelectro",
+    "shops:jbs"
+  ],
+  "blind": false,
+  "updatedAt": "2026-06-28T13:59:51.886Z"
 }

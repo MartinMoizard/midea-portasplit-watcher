@@ -48,7 +48,7 @@ Body: { variables:{ offerId, deliveryAddress:{postalCode,addressCountry:"FRA"} |
 
 ## ✅ Optimea (officiel, WooCommerce) — INTÉGRÉ, sans auth
 
-Voir `src/retailers/optimea.ts`.
+Voir `src/optimea/api.ts`.
 
 ```
 GET https://www.optimea.fr/wp-json/wc/store/v1/products?slug=climatiseur-split-mobile-midea

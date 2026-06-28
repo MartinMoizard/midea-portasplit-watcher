@@ -1,16 +1,13 @@
 {
-  "name": "midea-portasplit-watcher",
-  "version": "0.1.0",
+  "name": "midea-portasplit-radar",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "Surveille la disponibilité du climatiseur Midea PortaSplit (Optimea) chez les enseignes françaises",
+  "description": "Radar de réassort multi-sources du climatiseur Midea PortaSplit (Optimea) — alerte mobile au retour en stock",
   "scripts": {
-    "check": "tsx src/cli.ts",
-    "check:all": "tsx src/cli.ts --browser",
-    "watch": "tsx src/cli.ts --watch",
+    "monitor": "tsx src/monitor/index.ts",
     "casto:stock": "tsx src/casto/sweep.ts",
     "boulanger:stock": "tsx src/boulanger/sweep.ts",
-    "monitor": "tsx src/monitor/index.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

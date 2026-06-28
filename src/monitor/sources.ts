@@ -15,10 +15,10 @@ import {
   FRANCE_GRID,
   PRODUCT_URL as BOULANGER_URL,
 } from '../boulanger/api.js';
-import { checkOptimeaVariants, OPTIMEA_URL } from '../retailers/optimea.js';
+import { checkOptimeaVariants, OPTIMEA_URL } from '../optimea/api.js';
 import { getManoManoState, PRODUCT_URL as MANOMANO_URL } from '../manomano/api.js';
 import { fetchHtml } from '../lib/http.js';
-import { pool, withRetry } from '../lib/util.js';
+import { pool, withRetry, PRICE_MAX } from '../lib/util.js';
 import { scanShops } from './shops.js';
 
 export interface Offer {
@@ -221,7 +221,9 @@ export async function scanDealabs(): Promise<ScanResult> {
 export async function scanManoMano(): Promise<ScanResult> {
   try {
     const s = await withRetry(() => getManoManoState());
-    const offers: Offer[] = s.inStock
+    // Filtre prix : un revendeur tiers à prix gonflé ne doit pas déclencher d'alerte.
+    const buyableAtFairPrice = s.inStock && (s.price == null || s.price <= PRICE_MAX);
+    const offers: Offer[] = buyableAtFairPrice
       ? [
           {
             source: 'manomano',
@@ -261,14 +263,21 @@ export async function scanComparer(): Promise<ScanResult> {
     if (res.blocked) {
       return { source: 'comparer', offers: [], ok: false, note: 'bloqué' };
     }
-    const idx = res.html.indexOf("C'était disponible");
-    if (idx === -1) {
+    // Zone des offres ACTIVES = entre "Meilleur prix" et "C'était disponible".
+    // On NE cherche QUE là (pas dans le footer/menus) pour éviter les faux positifs.
+    const startIdx = res.html.indexOf('Meilleur prix');
+    const histIdx = res.html.indexOf("C'était disponible");
+    if (startIdx === -1 || histIdx === -1 || histIdx <= startIdx) {
       // structure inattendue : on n'émet rien plutôt que de risquer un faux positif
       return { source: 'comparer', offers: [], ok: false, note: 'structure changée' };
     }
-    const historical = res.html.slice(idx);
+    const activeZone = res.html.slice(startIdx, histIdx);
+    const historical = res.html.slice(histIdx); // "C'était disponible…" + footer
+    // Dispo = présent dans la zone des offres ET PAS listé comme indisponible
+    // (le tableau comparatif liste aussi les marchands en rupture → on les exclut
+    // via la section historique ; le footer est aussi dans `historical`).
     const offers: Offer[] = COMPARER_TARGETS.filter(
-      (m) => res.html.includes(m) && !historical.includes(m),
+      (m) => activeZone.includes(m) && !historical.includes(m),
     ).map((m) => ({
       source: 'comparer',
       key: `comparer:${m.toLowerCase()}`,

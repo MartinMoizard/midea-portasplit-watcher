@@ -74,45 +74,93 @@ async function sendNtfy(
       Click: url,
     },
     body, // le corps (UTF-8) garde les emoji/accents
+    signal: AbortSignal.timeout(12_000),
   });
   if (!res.ok) throw new Error(`ntfy HTTP ${res.status}`);
 }
 
-async function sendTelegram(cfg: AlertConfig, title: string, body: string): Promise<void> {
+async function sendTelegram(
+  cfg: AlertConfig,
+  title: string,
+  body: string,
+  url: string,
+): Promise<void> {
   if (!cfg.telegramToken || !cfg.telegramChatId) return;
-  await fetch(`https://api.telegram.org/bot${cfg.telegramToken}/sendMessage`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      chat_id: cfg.telegramChatId,
-      text: `*${title}*\n${body}`,
-      parse_mode: 'Markdown',
-      disable_web_page_preview: true,
-    }),
-  });
+  const res = await fetch(
+    `https://api.telegram.org/bot${cfg.telegramToken}/sendMessage`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: cfg.telegramChatId,
+        // URL dans le corps (cliquable), pas dans le titre gras.
+        text: `*${title}*\n${body}\n${url}`,
+        parse_mode: 'Markdown',
+        disable_web_page_preview: true,
+      }),
+      signal: AbortSignal.timeout(12_000),
+    },
+  );
+  if (!res.ok) throw new Error(`telegram HTTP ${res.status}`);
 }
 
-async function sendWebhook(cfg: AlertConfig, title: string, body: string, offers: Offer[]): Promise<void> {
+async function sendWebhook(
+  cfg: AlertConfig,
+  title: string,
+  body: string,
+  offers: Offer[],
+): Promise<void> {
   if (!cfg.webhookUrl) return;
-  await fetch(cfg.webhookUrl, {
+  const res = await fetch(cfg.webhookUrl, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ text: `${title}\n${body}`, offers }),
+    signal: AbortSignal.timeout(12_000),
+  });
+  if (!res.ok) throw new Error(`webhook HTTP ${res.status}`);
+}
+
+function sendMacOS(title: string, body: string, url: string): Promise<void> {
+  return new Promise((resolve) => {
+    const safe = (s: string) => s.replace(/["\\]/g, ' ').replace(/\n/g, ' · ');
+    const full = url ? `${body} ${url}` : body; // macOS n'a pas de clic => URL dans le texte
+    const script = `display notification "${safe(full)}" with title "${safe(title)}" sound name "Glass"`;
+    execFile('osascript', ['-e', script], () => resolve());
   });
 }
 
-function sendMacOS(title: string, body: string): Promise<void> {
-  return new Promise((resolve) => {
-    const safe = (s: string) => s.replace(/["\\]/g, ' ').replace(/\n/g, ' · ');
-    const script = `display notification "${safe(body)}" with title "${safe(title)}" sound name "Glass"`;
-    execFile('osascript', ['-e', script], () => resolve());
+export interface NotifyInput {
+  title: string;
+  body: string;
+  url?: string;
+  tags?: string;
+  offers?: Offer[];
+}
+
+/** Diffuse une notification sur tous les canaux actifs. Ne rejette jamais. */
+export async function notifyAll(cfg: AlertConfig, n: NotifyInput): Promise<void> {
+  const url =
+    n.url ?? 'https://www.optimea.fr/product/climatiseur-split-mobile-midea/';
+  const tags = n.tags ?? 'rotating_light,snowflake';
+  const tasks: Array<[string, Promise<void>]> = [
+    ['ntfy', sendNtfy(cfg, n.title, n.body, url, tags)],
+    ['telegram', sendTelegram(cfg, n.title, n.body, url)],
+    ['webhook', sendWebhook(cfg, n.title, n.body, n.offers ?? [])],
+  ];
+  if (cfg.macos) tasks.push(['macOS', sendMacOS(n.title, n.body, url)]);
+  const results = await Promise.allSettled(tasks.map(([, p]) => p));
+  results.forEach((r, i) => {
+    if (r.status === 'rejected') {
+      console.error(
+        `   ⚠️ canal "${tasks[i]?.[0] ?? '?'}" en échec : ${String(r.reason).slice(0, 120)}`,
+      );
+    }
   });
 }
 
 /**
  * Envoie UNE notification par destination (clic direct vers le marchand).
- * Les offres partageant la même URL (ex. plusieurs magasins Castorama) sont
- * regroupées en une seule notif pour éviter le spam. Ne rejette jamais.
+ * Les offres partageant la même URL/magasin sont regroupées. Ne rejette jamais.
  */
 export async function dispatchAlert(cfg: AlertConfig, offers: Offer[]): Promise<void> {
   if (offers.length === 0) return;
@@ -129,13 +177,9 @@ export async function dispatchAlert(cfg: AlertConfig, offers: Offer[]): Promise<
 
   console.log(`\n\x1b[1m\x1b[42m\x1b[30m  🎉 EN STOCK (${groups.size}) — Midea PortaSplit  \x1b[0m`);
 
-  const tasks: Array<[string, Promise<void>]> = [];
   for (const [, items] of groups) {
     const first = items[0]!;
-    const url = first.url;
     const risky = items.some((o) => o.risky);
-    // L'avertissement est EXPLICITE dans le titre (texte ASCII qui survit au
-    // header ntfy) + tag "warning" (rendu ⚠️ par ntfy).
     const prefix = risky ? '[A VERIFIER - vendeur peu connu] ' : 'EN STOCK ';
     const extra = items.length > 1 ? ` (+${items.length - 1})` : '';
     const title = `${risky ? '⚠️' : '🎉'} ${prefix}${first.label}${extra}`;
@@ -153,19 +197,7 @@ export async function dispatchAlert(cfg: AlertConfig, offers: Offer[]): Promise<
         : '');
     const tags = risky ? 'warning' : 'rotating_light,snowflake';
 
-    console.log(`   \x1b[32m→ ${title}\x1b[0m  \x1b[36m${url}\x1b[0m`);
-
-    tasks.push(['ntfy', sendNtfy(cfg, title, body, url, tags)]);
-    tasks.push(['telegram', sendTelegram(cfg, `${title}\n${url}`, body)]);
-    tasks.push(['webhook', sendWebhook(cfg, title, body, items)]);
-    if (cfg.macos) tasks.push(['macOS', sendMacOS(title, body)]);
+    console.log(`   \x1b[32m→ ${title}\x1b[0m  \x1b[36m${first.url}\x1b[0m`);
+    await notifyAll(cfg, { title, body, url: first.url, tags, offers: items });
   }
-
-  const results = await Promise.allSettled(tasks.map(([, p]) => p));
-  results.forEach((r, i) => {
-    if (r.status === 'rejected') {
-      const name = tasks[i]?.[0] ?? '?';
-      console.error(`   ⚠️ canal "${name}" en échec : ${String(r.reason).slice(0, 120)}`);
-    }
-  });
 }

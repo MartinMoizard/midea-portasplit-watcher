@@ -41,5 +41,11 @@ jobs:
             git config user.email "radar-bot@users.noreply.github.com"
             git add .monitor-state.json
             git commit -m "radar: update state [skip ci]"
-            git push
+            # Push robuste : si le ref distant a avancé entre checkout et push,
+            # on rebase et on réessaie (évite un échec de push durable).
+            for i in 1 2 3; do
+              git push && break
+              echo "push rejeté, resync (tentative $i)…"
+              git pull --rebase --autostash origin main || true
+            done
           fi
