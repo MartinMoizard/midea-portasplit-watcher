@@ -1,17 +1,13 @@
 name: Radar Midea PortaSplit
 
 # Radar de réassort gratuit, dans le cloud (aucun PC requis).
-#
-# Stratégie de fiabilité : les crons GitHub "toutes les 10 min" sont best-effort
-# et souvent sautés. À la place, CHAQUE run est une BOUCLE longue (~5h40) qui
-# vérifie toutes les 10 min via un `sleep` interne (cadence 100% fiable). Un cron
-# grossier (toutes les ~6h) + le bouton manuel relancent la boucle. Le
-# `concurrency` empêche les chevauchements (le run suivant attend la fin du
-# précédent => continuité).
+# Déclenché de façon FIABLE par un pinger externe (cron-job.org) toutes les ~10 min
+# via l'API workflow_dispatch. Le cron GitHub ci-dessous n'est qu'un filet de
+# secours (best-effort). Chaque run = 1 cycle rapide (~1 min).
 on:
+  workflow_dispatch: {} # déclenché par le pinger (et manuellement)
   schedule:
-    - cron: '7 */6 * * *' # relance la boucle ~4x/jour (cron grossier = plus fiable)
-  workflow_dispatch: {} # démarrage manuel
+    - cron: '4,14,24,34,44,54 * * * *' # filet de secours (GitHub best-effort)
 
 permissions:
   contents: write # pour persister .monitor-state.json (anti-spam)
@@ -23,14 +19,15 @@ concurrency:
 jobs:
   scan:
     runs-on: ubuntu-latest
-    timeout-minutes: 350 # < 360 (max GitHub) ; la boucle s'arrête avant
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
       - run: npm install --omit=optional
-      - name: Boucle radar (check toutes les 10 min pendant ~5h40)
+      - name: Scan + alerte (1 cycle)
+        run: npm run monitor -- --once
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
           NTFY_SERVER: ${{ secrets.NTFY_SERVER }}
@@ -38,20 +35,15 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
+      - name: Persiste l'état (anti-spam, push robuste)
         run: |
-          git config user.name "radar-bot"
-          git config user.email "radar-bot@users.noreply.github.com"
-          END=$(( $(date +%s) + 20400 )) # ~5h40
-          while [ "$(date +%s)" -lt "$END" ]; do
-            npm run monitor -- --once || true
-            # Persiste l'état seulement s'il a changé (anti-spam), push robuste.
-            if [[ -n "$(git status --porcelain .monitor-state.json)" ]]; then
-              git add .monitor-state.json
-              git commit -m "radar: update state [skip ci]" || true
-              for i in 1 2 3; do
-                git push && break
-                git pull --rebase --autostash origin main || true
-              done
-            fi
-            sleep 600
-          done
+          if [[ -n "$(git status --porcelain .monitor-state.json)" ]]; then
+            git config user.name "radar-bot"
+            git config user.email "radar-bot@users.noreply.github.com"
+            git add .monitor-state.json
+            git commit -m "radar: update state [skip ci]"
+            for i in 1 2 3; do
+              git push && break
+              git pull --rebase --autostash origin main || true
+            done
+          fi
