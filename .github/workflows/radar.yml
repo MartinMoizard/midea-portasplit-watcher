@@ -30,7 +30,7 @@ jobs:
         with:
           node-version: '22'
       - run: npm install --omit=optional
-      - name: Boucle radar (check toutes les ~5 min pendant ~5h30)
+      - name: Boucle radar (check toutes les ~3 min pendant ~5h30)
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
           NTFY_SERVER: ${{ secrets.NTFY_SERVER }}
@@ -52,9 +52,9 @@ jobs:
                 git pull --rebase --autostash origin main || true
               done
             fi
-            # ~5 min avec jitter (240-360s) : 2x plus réactif, reste poli avec
-            # les API marchands (évite le rate-limit). Repo public = gratuit illimité.
-            sleep $(( 240 + RANDOM % 120 ))
+            # ~3 min avec jitter (150-210s) : réactif tout en restant raisonnable
+            # pour les API marchands. Repo public = gratuit illimité.
+            sleep $(( 150 + RANDOM % 60 ))
           done
       # Ne tourne QUE si la boucle a fini normalement (évite tout emballement si
       # un run plante vite) => relance le run suivant, qui démarrera dès la fin
