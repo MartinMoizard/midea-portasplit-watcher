@@ -1,5 +1,6 @@
 {
   "knownKeys": [
+    "castorama:store:1477",
     "castorama:delivery",
     "castorama:store:1447",
     "castorama:store:1444",
@@ -8,5 +9,5 @@
     "shops:jbs"
   ],
   "blind": false,
-  "updatedAt": "2026-07-08T06:27:51.864Z"
+  "updatedAt": "2026-07-08T06:44:29.599Z"
 }
