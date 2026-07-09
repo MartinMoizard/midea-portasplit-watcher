@@ -66,7 +66,8 @@ minutes **illimitées gratuites**. Workflow : [.github/workflows/radar.yml](.git
 
 - Cron : `4,14,24,34,44,54 * * * *` (minutes décalées : les crons GitHub sont
   *best-effort* et sautés aux heures rondes ; décaler améliore la fiabilité).
-- Le topic ntfy est un **secret GitHub** `NTFY_TOPIC` (pas dans le code). Autres
+- Le topic ntfy est un **secret GitHub** `NTFY_TOPIC` (pas dans le code) —
+  plusieurs topics possibles séparés par des virgules (`topic1,topic2`). Autres
   secrets possibles : `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `WEBHOOK_URL`.
 - Anti-spam : `.monitor-state.json` est versionné (committé par le bot), push
   robuste avec rebase+retry.

@@ -2,7 +2,8 @@
  * Dispatcher d'alertes multi-canal. Configuré par variables d'environnement
  * (cf. .env.example). Chaque canal échoue indépendamment (jamais bloquant).
  *
- *   ntfy.sh        -> push téléphone, zéro compte (NTFY_TOPIC)
+ *   ntfy.sh        -> push téléphone, zéro compte (NTFY_TOPIC, plusieurs
+ *                     topics possibles séparés par des virgules)
  *   macOS          -> notification + son (ALERT_MACOS=1, défaut sur darwin)
  *   Telegram       -> TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID
  *   Webhook        -> WEBHOOK_URL (POST JSON, ex. Slack/Discord/Zapier)
@@ -12,7 +13,7 @@ import { execFile } from 'node:child_process';
 import type { Offer } from './sources.js';
 
 export interface AlertConfig {
-  ntfyTopic?: string;
+  ntfyTopics: string[];
   ntfyServer: string;
   macos: boolean;
   telegramToken?: string;
@@ -23,7 +24,10 @@ export interface AlertConfig {
 export function loadAlertConfig(): AlertConfig {
   const env = process.env;
   return {
-    ntfyTopic: env.NTFY_TOPIC,
+    ntfyTopics: (env.NTFY_TOPIC ?? '')
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean),
     ntfyServer: env.NTFY_SERVER || 'https://ntfy.sh',
     macos: env.ALERT_MACOS
       ? env.ALERT_MACOS === '1' || env.ALERT_MACOS === 'true'
@@ -37,7 +41,7 @@ export function loadAlertConfig(): AlertConfig {
 /** Liste lisible des canaux actifs (pour log de démarrage). */
 export function activeChannels(cfg: AlertConfig): string[] {
   const out = ['console'];
-  if (cfg.ntfyTopic) out.push(`ntfy:${cfg.ntfyTopic}`);
+  for (const topic of cfg.ntfyTopics) out.push(`ntfy:${topic}`);
   if (cfg.macos) out.push('macOS');
   if (cfg.telegramToken && cfg.telegramChatId) out.push('telegram');
   if (cfg.webhookUrl) out.push('webhook');
@@ -57,13 +61,13 @@ function asciiHeader(s: string): string {
 
 async function sendNtfy(
   cfg: AlertConfig,
+  topic: string,
   title: string,
   body: string,
   url: string,
   tags = 'rotating_light,snowflake',
 ): Promise<void> {
-  if (!cfg.ntfyTopic) return;
-  const res = await fetch(`${cfg.ntfyServer}/${cfg.ntfyTopic}`, {
+  const res = await fetch(`${cfg.ntfyServer}/${topic}`, {
     method: 'POST',
     headers: {
       // Le titre passe en header (ASCII) ; les emoji arrivent via Tags
@@ -143,7 +147,12 @@ export async function notifyAll(cfg: AlertConfig, n: NotifyInput): Promise<void>
     n.url ?? 'https://www.optimea.fr/product/climatiseur-split-mobile-midea/';
   const tags = n.tags ?? 'rotating_light,snowflake';
   const tasks: Array<[string, Promise<void>]> = [
-    ['ntfy', sendNtfy(cfg, n.title, n.body, url, tags)],
+    ...cfg.ntfyTopics.map(
+      (topic): [string, Promise<void>] => [
+        `ntfy:${topic}`,
+        sendNtfy(cfg, topic, n.title, n.body, url, tags),
+      ],
+    ),
     ['telegram', sendTelegram(cfg, n.title, n.body, url)],
     ['webhook', sendWebhook(cfg, n.title, n.body, n.offers ?? [])],
   ];

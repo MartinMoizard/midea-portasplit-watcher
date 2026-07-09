@@ -170,7 +170,7 @@ async function main(): Promise<void> {
     console.log(`   ✅ Test envoyé. Vérifie ton téléphone / tes notifications.`);
     return;
   }
-  if (!cfg.ntfyTopic && !cfg.telegramToken)
+  if (cfg.ntfyTopics.length === 0 && !cfg.telegramToken)
     console.log(
       `   ⚠️ Aucun canal push (téléphone) configuré — voir .env.example (NTFY_TOPIC recommandé).`,
     );
