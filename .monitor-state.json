@@ -1,8 +1,9 @@
 {
   "knownKeys": [
     "castorama:store:1434",
-    "shops:megelectro"
+    "shops:megelectro",
+    "shops:jbs"
   ],
   "blind": false,
-  "updatedAt": "2026-07-14T05:22:43.252Z"
+  "updatedAt": "2026-07-14T05:26:39.864Z"
 }
