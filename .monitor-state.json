@@ -1,6 +1,5 @@
 {
   "knownKeys": [
-    "boulanger:store:F788",
     "boulanger:store:F716",
     "boulanger:store:F316",
     "boulanger:store:F963",
@@ -14,5 +13,5 @@
     "shops:jbs"
   ],
   "blind": false,
-  "updatedAt": "2026-07-15T10:01:18.538Z"
+  "updatedAt": "2026-07-15T10:11:29.772Z"
 }
