@@ -5,6 +5,7 @@
     "boulanger:store:F716",
     "boulanger:store:F963",
     "boulanger:store:F244",
+    "boulanger:store:F883",
     "boulanger:store:F123",
     "boulanger:store:F321",
     "boulanger:store:F560",
@@ -13,5 +14,5 @@
     "shops:jbs"
   ],
   "blind": false,
-  "updatedAt": "2026-07-15T13:13:29.787Z"
+  "updatedAt": "2026-07-15T13:30:24.767Z"
 }
