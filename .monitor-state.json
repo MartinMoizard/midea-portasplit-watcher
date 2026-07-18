@@ -1,11 +1,9 @@
 {
   "knownKeys": [
-    "boulanger:store:F278",
     "boulanger:store:F774",
     "boulanger:store:F883",
-    "shops:megelectro",
-    "shops:jbs"
+    "shops:megelectro"
   ],
   "blind": false,
-  "updatedAt": "2026-07-18T14:10:21.086Z"
+  "updatedAt": "2026-07-18T14:37:30.955Z"
 }
